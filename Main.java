@@ -1,6 +1,7 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.*;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,8 +16,6 @@ public class Main {
 
     public static void main(String[] args) {
         inisialisasiData();
-
-        // Semua komponen Swing harus dibuat di Event Dispatch Thread (EDT)
         SwingUtilities.invokeLater(() -> {
             User userLogin = loginGUI();
             if (userLogin == null) {
@@ -40,67 +39,61 @@ public class Main {
         inventory = DBHelper.loadInventory();
         if (inventory.isEmpty()) {
             Barang[] initial = {
-                    new Barang("B001", "Samsung Galaxy A35", "Handphone", 4500000, 15, "1 Tahun"),
-                    new Barang("B002", "iPhone 15 128GB", "Handphone", 13500000, 8, "1 Tahun"),
-                    new Barang("B003", "Laptop ASUS VivoBook 15", "Laptop", 7800000, 12, "2 Tahun"),
-                    new Barang("B004", "Earphone Sony WH-1000XM5", "Aksesoris", 6500000, 20, "1 Tahun")
+                    new Barang("B001", "Samsung Galaxy A35",      "Handphone", 4500000,  15, "1 Tahun"),
+                    new Barang("B002", "iPhone 15 128GB",          "Handphone", 13500000,  8, "1 Tahun"),
+                    new Barang("B003", "Laptop ASUS VivoBook 15",  "Laptop",     7800000, 12, "2 Tahun"),
+                    new Barang("B004", "Earphone Sony WH-1000XM5", "Aksesoris",  6500000, 20, "1 Tahun")
             };
-            for (Barang b : initial) {
-                inventory.add(b);
-                DBHelper.addBarang(b);
-            }
+            for (Barang b : initial) { inventory.add(b); DBHelper.addBarang(b); }
         }
 
         riwayatTransaksi = DBHelper.loadRiwayat();
-        transaksiCounter = getNextTransaksiCounter();
+        transaksiCounter  = getNextTransaksiCounter();
     }
 
     private static int getNextTransaksiCounter() {
-        String sql = "SELECT MAX(CAST(SUBSTRING(idPenjualan, 5) AS UNSIGNED)) FROM penjualan";
+        String sql = "SELECT MAX(CAST(SUBSTRING(idPenjualan,5) AS UNSIGNED)) FROM penjualan";
         try (Connection conn = DBHelper.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            if (rs.next()) {
-                int max = rs.getInt(1);
-                return max + 1;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+             Statement   stmt = conn.createStatement();
+             ResultSet   rs   = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getInt(1) + 1;
+        } catch (SQLException e) { e.printStackTrace(); }
         return 1;
     }
+
+    // ================================================================
+    //  LOGIN
+    // ================================================================
 
     private static User loginGUI() {
         while (true) {
             JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
-            JTextField userField = new JTextField(15);
+            JTextField    userField = new JTextField(15);
             JPasswordField passField = new JPasswordField(15);
+            panel.add(new JLabel("Username :")); panel.add(userField);
+            panel.add(new JLabel("Password :")); panel.add(passField);
 
-            panel.add(new JLabel("Username :"));
-            panel.add(userField);
-            panel.add(new JLabel("Password :"));
-            panel.add(passField);
-
-            int option = JOptionPane.showConfirmDialog(null, panel,
+            int opt = JOptionPane.showConfirmDialog(null, panel,
                     "Login Toko Elektronik", JOptionPane.OK_CANCEL_OPTION);
-            if (option != JOptionPane.OK_OPTION) return null;
+            if (opt != JOptionPane.OK_OPTION) return null;
 
             String username = userField.getText().trim();
             String password = new String(passField.getPassword()).trim();
 
-            for (User u : users) {
+            for (User u : users)
                 if (u.login(username, password)) {
-                    JOptionPane.showMessageDialog(null,
-                            "Login BERHASIL!\nSelamat datang, " + u.getRole());
+                    JOptionPane.showMessageDialog(null, "Login BERHASIL!\nSelamat datang, " + u.getRole());
                     return u;
                 }
-            }
-            JOptionPane.showMessageDialog(null,
-                    "Username atau password SALAH!", "Gagal", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "Username atau password SALAH!", "Gagal", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private static JMenuItem createStyledMenuItem(String text) {
+    // ================================================================
+    //  MAIN WINDOW
+    // ================================================================
+
+    private static JMenuItem styledMenu(String text) {
         JMenuItem item = new JMenuItem(text);
         item.setFont(new Font("Arial", Font.BOLD, 14));
         item.setBackground(new Color(0, 102, 204));
@@ -115,32 +108,31 @@ public class Main {
         mainFrame.setLocationRelativeTo(null);
 
         JMenuBar menuBar = new JMenuBar();
-        JMenu menu = new JMenu("Fitur Program");
+        JMenu    menu    = new JMenu("Fitur Program");
 
-        JMenuItem itemCekStok = createStyledMenuItem("1. Cek Stok & Harga");
-        itemCekStok.addActionListener(e -> cekStokDanHargaGUI());
-        menu.add(itemCekStok);
+        JMenuItem itemStok = styledMenu("1. Cek Stok & Harga");
+        itemStok.addActionListener(e -> cekStokDanHargaGUI(mainFrame));
+        menu.add(itemStok);
 
         if (userLogin.getRole().equals("ADMIN")) {
-            JMenuItem itemManajemen = createStyledMenuItem("2. Manajemen Barang");
-            itemManajemen.addActionListener(e -> manajemenBarangGUI());
-            menu.add(itemManajemen);
+            JMenuItem itemManaj = styledMenu("2. Manajemen Barang");
+            itemManaj.addActionListener(e -> manajemenBarangGUI(mainFrame));
+            menu.add(itemManaj);
         } else {
-            JMenuItem itemTransaksi = createStyledMenuItem("2. Transaksi Penjualan (Kasir)");
-            itemTransaksi.addActionListener(e -> transaksiPenjualanGUI(userLogin));
-            menu.add(itemTransaksi);
+            JMenuItem itemTrans = styledMenu("2. Transaksi Penjualan (Kasir)");
+            itemTrans.addActionListener(e -> transaksiPenjualanGUI(mainFrame));
+            menu.add(itemTrans);
         }
 
-        // Teruskan userLogin agar riwayat tahu apakah perlu tampilkan tombol edit/hapus
-        JMenuItem itemRiwayat = createStyledMenuItem("3. Riwayat Transaksi");
-        itemRiwayat.addActionListener(e -> riwayatTransaksiGUI(userLogin));
+        JMenuItem itemRiwayat = styledMenu("3. Riwayat Transaksi");
+        itemRiwayat.addActionListener(e -> riwayatTransaksiGUI(mainFrame, userLogin));
         menu.add(itemRiwayat);
 
-        JMenuItem itemLaporan = createStyledMenuItem("4. Laporan Stok Rendah");
-        itemLaporan.addActionListener(e -> laporanStokRendahGUI());
+        JMenuItem itemLaporan = styledMenu("4. Laporan Stok Rendah");
+        itemLaporan.addActionListener(e -> laporanStokRendahGUI(mainFrame));
         menu.add(itemLaporan);
 
-        JMenuItem itemKeluar = createStyledMenuItem("5. Keluar");
+        JMenuItem itemKeluar = styledMenu("5. Keluar");
         itemKeluar.addActionListener(e -> logout(mainFrame));
         menu.add(itemKeluar);
 
@@ -151,7 +143,6 @@ public class Main {
         BackgroundPanel bgPanel = new BackgroundPanel(bgImage);
         bgPanel.setOpacity(0.30f);
         bgPanel.setScaleMode(BackgroundPanel.ScaleMode.COVER);
-
         mainFrame.setContentPane(bgPanel);
         bgPanel.setLayout(new BorderLayout());
 
@@ -168,180 +159,352 @@ public class Main {
         frame.dispose();
         inisialisasiData();
         SwingUtilities.invokeLater(() -> {
-            User userLogin = loginGUI();
-            if (userLogin != null) createMainUI(userLogin);
+            User u = loginGUI();
+            if (u != null) createMainUI(u);
         });
     }
 
-    // ============================================================
-    //  TRANSAKSI PENJUALAN — Barang dipilih lewat JComboBox
-    // ============================================================
+    // ================================================================
+    //  TRANSAKSI PENJUALAN — JDialog proper, tidak pakai while+JOptionPane
+    //
+    //  FIX: Sebelumnya menggunakan while loop + JOptionPane berantai di EDT
+    //       yang menyebabkan program freeze / tidak responsif / background
+    //       terpotong saat di-stretch.
+    //
+    //  BARU: Seluruh UI transaksi ada dalam satu JDialog dengan:
+    //    - Panel kiri : daftar barang (pilih via JComboBox + JSpinner)
+    //    - Panel kanan: keranjang (JTable yang bisa diedit langsung)
+    //    - Fitur edit keranjang: ubah jumlah atau hapus item
+    //    - Tombol "Selesai & Bayar" hanya proses sekali, tidak loop
+    // ================================================================
 
-    private static void transaksiPenjualanGUI(User kasir) {
-        List<PenjualanDetail> cart = new ArrayList<>();
+    private static void transaksiPenjualanGUI(JFrame parent) {
 
-        // ---- Pilih customer ----
-        List<String> customerNames = DBHelper.loadCustomerNames();
-        JComboBox<String> comboCustomer = new JComboBox<>();
-        comboCustomer.addItem("--- Pilih Customer ---");
-        for (String nama : customerNames) comboCustomer.addItem(nama);
-        comboCustomer.addItem("Tambah Customer Baru");
+        // ---- Pilih customer dulu sebelum membuka dialog utama ----
+        List<String> custNames = DBHelper.loadCustomerNames();
+        JComboBox<String> comboCust = new JComboBox<>();
+        comboCust.addItem("--- Pilih Customer ---");
+        for (String n : custNames) comboCust.addItem(n);
+        comboCust.addItem("Tambah Customer Baru");
 
-        int result = JOptionPane.showConfirmDialog(null, comboCustomer,
+        int r = JOptionPane.showConfirmDialog(parent, comboCust,
                 "Pilih atau Tambah Customer", JOptionPane.OK_CANCEL_OPTION);
-        if (result != JOptionPane.OK_OPTION) {
-            JOptionPane.showMessageDialog(null, "Transaksi dibatalkan.");
-            return;
-        }
+        if (r != JOptionPane.OK_OPTION) return;
 
-        String namaCust = (String) comboCustomer.getSelectedItem();
-        if (namaCust == null || namaCust.equals("--- Pilih Customer ---")) {
-            JOptionPane.showMessageDialog(null, "Transaksi dibatalkan.");
-            return;
-        }
+        String namaCust = (String) comboCust.getSelectedItem();
+        if (namaCust == null || namaCust.equals("--- Pilih Customer ---")) return;
 
-        String customerId;
+        final String[] customerRef = new String[2]; // [0]=id, [1]=nama
+
         if (namaCust.equals("Tambah Customer Baru")) {
-            namaCust = JOptionPane.showInputDialog(null,
-                    "Masukkan Nama Customer Baru:", "Customer Baru", JOptionPane.QUESTION_MESSAGE);
-            if (namaCust == null || namaCust.trim().isEmpty()) return;
-            namaCust = namaCust.trim();
-            customerId = getOrCreateCustomerId(namaCust);
-            if (customerId == null) {
-                JOptionPane.showMessageDialog(null, "Gagal menambahkan customer.");
+            String input = JOptionPane.showInputDialog(parent, "Nama Customer Baru:");
+            if (input == null || input.trim().isEmpty()) return;
+            customerRef[1] = input.trim();
+            customerRef[0] = getOrCreateCustomerId(customerRef[1]);
+            if (customerRef[0] == null) {
+                JOptionPane.showMessageDialog(parent, "Gagal menambahkan customer.");
                 return;
             }
         } else {
-            customerId = getCustomerIdByName(namaCust);
-            if (customerId == null) {
-                JOptionPane.showMessageDialog(null, "ID customer tidak ditemukan di database.");
+            customerRef[1] = namaCust;
+            customerRef[0] = getCustomerIdByName(namaCust);
+            if (customerRef[0] == null) {
+                JOptionPane.showMessageDialog(parent, "ID customer tidak ditemukan.");
                 return;
             }
         }
 
-        // ---- Loop keranjang ----
-        final String namaCustomerFinal = namaCust;
-        final String customerIdFinal   = customerId;
+        // ---- Model untuk keranjang ----
+        String[] cartCols = {"ID Barang", "Nama Barang", "Harga Satuan", "Jumlah", "Subtotal"};
+        DefaultTableModel cartModel = new DefaultTableModel(cartCols, 0) {
+            @Override public boolean isCellEditable(int row, int col) { return false; }
+        };
+        // cart item: [Barang barang, int jumlah]
+        List<Object[]> cartItems = new ArrayList<>();
 
-        boolean selesai = false;
-        while (!selesai) {
-            String[] options = {"Tambah Barang ke Keranjang", "Lihat Keranjang", "Selesai & Bayar", "Batal"};
-            int pilihan = JOptionPane.showOptionDialog(
-                    null,
-                    "Keranjang saat ini: " + cart.size() + " item\nNama Customer: " + namaCustomerFinal,
-                    "Transaksi Penjualan",
-                    JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE,
-                    null, options, options[0]
-            );
+        // ---- Hitung total helper (dipanggil tiap perubahan keranjang) ----
+        // Menggunakan array 1-elemen agar bisa diakses dari dalam lambda
+        JLabel[] totalLabel = { new JLabel("Total: Rp 0") };
+        totalLabel[0].setFont(new Font("Arial", Font.BOLD, 14));
 
-            if (pilihan == 0) {
-                // Hanya tampilkan barang yang masih ada stoknya
-                List<Barang> tersedia = new ArrayList<>();
-                for (Barang b : inventory) {
-                    if ((b.getStok() - getQtyInCart(cart, b.getIdBarang())) > 0) tersedia.add(b);
-                }
-
-                if (tersedia.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "Tidak ada barang yang tersedia!");
-                    continue;
-                }
-
-                // Label: "B001  |  Samsung Galaxy A35  |  Rp 4.500.000  |  Stok tersedia: 15"
-                String[] labelBarang = new String[tersedia.size()];
-                for (int i = 0; i < tersedia.size(); i++) {
-                    Barang b = tersedia.get(i);
-                    int sisa = b.getStok() - getQtyInCart(cart, b.getIdBarang());
-                    labelBarang[i] = String.format("%s  |  %s  |  Rp %,.0f  |  Stok tersedia: %d",
-                            b.getIdBarang(), b.getNamaBarang(), b.getHarga(), sisa);
-                }
-
-                JComboBox<String> comboBarang = new JComboBox<>(labelBarang);
-                comboBarang.setPreferredSize(new Dimension(480, 28));
-
-                int res = JOptionPane.showConfirmDialog(null, comboBarang,
-                        "Pilih Barang", JOptionPane.OK_CANCEL_OPTION);
-                if (res != JOptionPane.OK_OPTION) continue;
-
-                int idx = comboBarang.getSelectedIndex();
-                if (idx < 0) continue;
-
-                Barang barangTerpilih = tersedia.get(idx);
-                int stokSisa = barangTerpilih.getStok() - getQtyInCart(cart, barangTerpilih.getIdBarang());
-
-                // Spinner jumlah (1 s.d. stok sisa)
-                SpinnerNumberModel spinnerModel = new SpinnerNumberModel(1, 1, stokSisa, 1);
-                JSpinner spinnerJumlah = new JSpinner(spinnerModel);
-
-                JPanel panelQty = new JPanel(new GridLayout(2, 1, 5, 5));
-                panelQty.add(new JLabel("Jumlah beli: " + barangTerpilih.getNamaBarang()
-                        + "  (maks. " + stokSisa + ")"));
-                panelQty.add(spinnerJumlah);
-
-                int resQty = JOptionPane.showConfirmDialog(null, panelQty,
-                        "Jumlah Pembelian", JOptionPane.OK_CANCEL_OPTION);
-                if (resQty != JOptionPane.OK_OPTION) continue;
-
-                int qty = (int) spinnerJumlah.getValue();
-                String idDetail = "DP-" + String.format("%04d", transaksiCounter)
-                        + "-" + String.format("%02d", cart.size() + 1);
-                PenjualanDetail detail = new PenjualanDetail(
-                        idDetail, barangTerpilih.getIdBarang(), qty);
-                detail.hitungSubtotal(barangTerpilih.getHarga());
-                cart.add(detail);
-
-                JOptionPane.showMessageDialog(null,
-                        barangTerpilih.getNamaBarang() + " x " + qty + " berhasil ditambahkan!");
-
-            } else if (pilihan == 1) {
-                if (cart.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "Keranjang masih kosong.");
-                    continue;
-                }
-                StringBuilder sb = new StringBuilder("=== KERANJANG BELANJA ===\n\n");
-                double total = 0;
-                for (PenjualanDetail d : cart) {
-                    Barang b = findBarangById(d.getIdBarang());
-                    if (b != null) {
-                        sb.append(b.getNamaBarang()).append(" x ").append(d.getJumlah())
-                          .append(" = Rp ").append(String.format("%,.0f", d.getSubtotal())).append("\n");
-                        total += d.getSubtotal();
-                    }
-                }
-                sb.append("\nTotal sementara : Rp ").append(String.format("%,.0f", total));
-                JOptionPane.showMessageDialog(null, sb.toString(), "Keranjang", JOptionPane.PLAIN_MESSAGE);
-
-            } else if (pilihan == 2) {
-                if (cart.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "Keranjang kosong! Tambah barang dulu.");
-                    continue;
-                }
-                int confirm = JOptionPane.showConfirmDialog(null,
-                        "Simpan transaksi dengan " + cart.size() + " item?\nTotal akan dihitung otomatis.",
-                        "Konfirmasi Pembelian", JOptionPane.YES_NO_OPTION);
-                if (confirm != JOptionPane.YES_OPTION) continue;
-
-                String idTrans = "TRX-" + String.format("%04d", transaksiCounter);
-                Penjualan transaksi = new Penjualan(idTrans, customerIdFinal, namaCustomerFinal, cart);
-                transaksi.hitungTotal();
-
-                boolean sukses = simpanTransaksiKeDatabase(transaksi);
-                if (sukses) {
-                    transaksiCounter++;
-                    String struk = transaksi.getStrukText(inventory.toArray(new Barang[0]));
-                    JTextArea ta = new JTextArea(struk);
-                    ta.setEditable(false);
-                    JOptionPane.showMessageDialog(null, new JScrollPane(ta),
-                            "STRUK PENJUALAN", JOptionPane.INFORMATION_MESSAGE);
-                    riwayatTransaksi.add(transaksi);
-                    JOptionPane.showMessageDialog(null, "✅ Transaksi berhasil disimpan!");
-                    selesai = true;
-                } else {
-                    JOptionPane.showMessageDialog(null, "❌ Transaksi gagal disimpan.");
-                }
-            } else {
-                selesai = true;
+        Runnable refreshTotal = () -> {
+            double sub = 0;
+            for (Object[] item : cartItems) {
+                Barang b   = (Barang) item[0];
+                int    qty = (int)    item[1];
+                sub += b.getHarga() * qty;
             }
+            double pajak = sub * 0.10;
+            totalLabel[0].setText(String.format(
+                    "<html>Subtotal: <b>Rp %,.0f</b> &nbsp;|&nbsp; Pajak 10%%: <b>Rp %,.0f</b> &nbsp;|&nbsp; TOTAL: <b>Rp %,.0f</b></html>",
+                    sub, pajak, sub + pajak));
+        };
+
+        // ---- Dialog utama ----
+        JDialog dialog = new JDialog(parent, "Transaksi Penjualan — " + customerRef[1], true);
+        dialog.setSize(820, 580);
+        dialog.setLocationRelativeTo(parent);
+        dialog.setLayout(new BorderLayout(8, 8));
+
+        // Panel atas: pilih barang
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+        topPanel.setBorder(BorderFactory.createTitledBorder("Pilih Barang"));
+
+        // ComboBox barang (diisi saat dialog dibuka, di-refresh tiap tambah)
+        JComboBox<String> comboBarang = new JComboBox<>();
+        comboBarang.setPreferredSize(new Dimension(380, 28));
+
+        Runnable refreshCombo = () -> {
+            comboBarang.removeAllItems();
+            for (Barang b : inventory) {
+                int diKeranjang = 0;
+                for (Object[] item : cartItems)
+                    if (((Barang) item[0]).getIdBarang().equals(b.getIdBarang()))
+                        diKeranjang = (int) item[1];
+                int sisa = b.getStok() - diKeranjang;
+                if (sisa > 0)
+                    comboBarang.addItem(String.format("%s  |  %s  |  Rp %,.0f  |  Stok: %d",
+                            b.getIdBarang(), b.getNamaBarang(), b.getHarga(), sisa));
+            }
+        };
+        refreshCombo.run();
+
+        JSpinner spinJumlah = new JSpinner(new SpinnerNumberModel(1, 1, 999, 1));
+        spinJumlah.setPreferredSize(new Dimension(70, 28));
+
+        // Update spinner max saat item combo berubah
+        comboBarang.addActionListener(e -> {
+            int idx = comboBarang.getSelectedIndex();
+            if (idx < 0) return;
+            List<Barang> tersedia = getTersedia(cartItems);
+            if (idx >= tersedia.size()) return;
+            Barang b = tersedia.get(idx);
+            int diKeranjang = 0;
+            for (Object[] item : cartItems)
+                if (((Barang) item[0]).getIdBarang().equals(b.getIdBarang()))
+                    diKeranjang = (int) item[1];
+            int sisa = b.getStok() - diKeranjang;
+            ((SpinnerNumberModel) spinJumlah.getModel()).setMaximum(sisa);
+            ((SpinnerNumberModel) spinJumlah.getModel()).setValue(1);
+        });
+
+        JButton btnTambah = new JButton("+ Tambah ke Keranjang");
+        btnTambah.addActionListener(e -> {
+            int idx = comboBarang.getSelectedIndex();
+            if (idx < 0) { JOptionPane.showMessageDialog(dialog, "Pilih barang dulu!"); return; }
+
+            List<Barang> tersedia = getTersedia(cartItems);
+            if (idx >= tersedia.size()) return;
+            Barang barangPilih = tersedia.get(idx);
+            int qty = (int) spinJumlah.getValue();
+
+            // Jika barang sudah di keranjang, tambah jumlahnya
+            boolean found = false;
+            for (Object[] item : cartItems) {
+                if (((Barang) item[0]).getIdBarang().equals(barangPilih.getIdBarang())) {
+                    int newQty = (int) item[1] + qty;
+                    int stokSisa = barangPilih.getStok();
+                    if (newQty > stokSisa) {
+                        JOptionPane.showMessageDialog(dialog, "Jumlah melebihi stok tersedia!");
+                        return;
+                    }
+                    item[1] = newQty;
+                    // Update baris di tabel
+                    for (int row = 0; row < cartModel.getRowCount(); row++) {
+                        if (cartModel.getValueAt(row, 0).equals(barangPilih.getIdBarang())) {
+                            cartModel.setValueAt(newQty, row, 3);
+                            cartModel.setValueAt(String.format("Rp %,.0f", barangPilih.getHarga() * newQty), row, 4);
+                            break;
+                        }
+                    }
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                cartItems.add(new Object[]{barangPilih, qty});
+                cartModel.addRow(new Object[]{
+                        barangPilih.getIdBarang(),
+                        barangPilih.getNamaBarang(),
+                        String.format("Rp %,.0f", barangPilih.getHarga()),
+                        qty,
+                        String.format("Rp %,.0f", barangPilih.getHarga() * qty)
+                });
+            }
+
+            refreshCombo.run();
+            refreshTotal.run();
+        });
+
+        topPanel.add(new JLabel("Barang:"));
+        topPanel.add(comboBarang);
+        topPanel.add(new JLabel("Jumlah:"));
+        topPanel.add(spinJumlah);
+        topPanel.add(btnTambah);
+
+        // Panel tengah: keranjang
+        JTable cartTable = new JTable(cartModel);
+        cartTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        cartTable.setRowHeight(24);
+        JScrollPane cartScroll = new JScrollPane(cartTable);
+        cartScroll.setBorder(BorderFactory.createTitledBorder("Keranjang Belanja"));
+
+        // Panel edit keranjang
+        JPanel editPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+
+        JButton btnEdit = new JButton("✏️ Edit Jumlah");
+        btnEdit.addActionListener(e -> {
+            int row = cartTable.getSelectedRow();
+            if (row < 0) { JOptionPane.showMessageDialog(dialog, "Pilih item di keranjang dulu!"); return; }
+
+            Object[] item     = cartItems.get(row);
+            Barang   barang   = (Barang) item[0];
+            int      qtyLama  = (int) item[1];
+            int      maxStok  = barang.getStok(); // stok total di inventory
+
+            SpinnerNumberModel sm = new SpinnerNumberModel(qtyLama, 1, maxStok, 1);
+            JSpinner sp = new JSpinner(sm);
+
+            int res = JOptionPane.showConfirmDialog(dialog,
+                    new Object[]{"Jumlah baru untuk " + barang.getNamaBarang() + " (maks. " + maxStok + "):", sp},
+                    "Edit Jumlah", JOptionPane.OK_CANCEL_OPTION);
+            if (res != JOptionPane.OK_OPTION) return;
+
+            int qtyBaru = (int) sp.getValue();
+            item[1] = qtyBaru;
+            cartModel.setValueAt(qtyBaru, row, 3);
+            cartModel.setValueAt(String.format("Rp %,.0f", barang.getHarga() * qtyBaru), row, 4);
+
+            refreshCombo.run();
+            refreshTotal.run();
+        });
+
+        JButton btnHapusItem = new JButton("🗑️ Hapus Item");
+        btnHapusItem.addActionListener(e -> {
+            int row = cartTable.getSelectedRow();
+            if (row < 0) { JOptionPane.showMessageDialog(dialog, "Pilih item di keranjang dulu!"); return; }
+
+            int confirm = JOptionPane.showConfirmDialog(dialog,
+                    "Hapus item ini dari keranjang?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            cartItems.remove(row);
+            cartModel.removeRow(row);
+            refreshCombo.run();
+            refreshTotal.run();
+        });
+
+        editPanel.add(btnEdit);
+        editPanel.add(btnHapusItem);
+
+        // Panel bawah: total + tombol aksi
+        JPanel bottomPanel = new JPanel(new BorderLayout(8, 4));
+        bottomPanel.setBorder(BorderFactory.createEmptyBorder(4, 8, 8, 8));
+
+        JPanel totalPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        totalPanel.add(totalLabel[0]);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        JButton btnBayar = new JButton("✅ Selesai & Bayar");
+        JButton btnBatal = new JButton("❌ Batal");
+
+        btnBayar.setBackground(new Color(0, 153, 76));
+        btnBayar.setForeground(Color.WHITE);
+        btnBayar.setFont(new Font("Arial", Font.BOLD, 13));
+        btnBatal.setFont(new Font("Arial", Font.BOLD, 13));
+
+        // FIX: Proses pembayaran dijalankan TANPA menutup dialog dulu,
+        // sehingga tidak ada window yang hilang tiba-tiba lalu freeze.
+        btnBayar.addActionListener(e -> {
+            if (cartItems.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Keranjang masih kosong!");
+                return;
+            }
+
+            // Buat objek Penjualan dari keranjang
+            List<PenjualanDetail> detailList = new ArrayList<>();
+            int detailIdx = 1;
+            for (Object[] item : cartItems) {
+                Barang b   = (Barang) item[0];
+                int    qty = (int)    item[1];
+                String idDetail = "DP-" + String.format("%04d", transaksiCounter)
+                        + "-" + String.format("%02d", detailIdx++);
+                PenjualanDetail d = new PenjualanDetail(idDetail, b.getIdBarang(), qty);
+                d.hitungSubtotal(b.getHarga());
+                detailList.add(d);
+            }
+
+            String idTrans = "TRX-" + String.format("%04d", transaksiCounter);
+            Penjualan transaksi = new Penjualan(idTrans, customerRef[0], customerRef[1], detailList);
+            transaksi.hitungTotal();
+
+            // Konfirmasi sebelum simpan
+            int confirm = JOptionPane.showConfirmDialog(dialog,
+                    "Simpan transaksi " + idTrans + "?\n"
+                    + String.format("TOTAL BAYAR: Rp %,.0f", transaksi.getTotalAkhir()),
+                    "Konfirmasi Pembayaran", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            boolean sukses = simpanTransaksiKeDatabase(transaksi);
+            if (sukses) {
+                transaksiCounter++;
+                riwayatTransaksi.add(transaksi);
+
+                // Tampilkan struk SETELAH dialog transaksi tutup
+                dialog.dispose();
+
+                String struk = transaksi.getStrukText(inventory.toArray(new Barang[0]));
+                JTextArea ta = new JTextArea(struk);
+                ta.setEditable(false);
+                ta.setFont(new Font("Monospaced", Font.PLAIN, 13));
+                JOptionPane.showMessageDialog(parent, new JScrollPane(ta),
+                        "STRUK PENJUALAN", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(parent, "✅ Transaksi berhasil disimpan!");
+            } else {
+                JOptionPane.showMessageDialog(dialog, "❌ Transaksi gagal disimpan.");
+            }
+        });
+
+        btnBatal.addActionListener(e -> {
+            if (!cartItems.isEmpty()) {
+                int confirm = JOptionPane.showConfirmDialog(dialog,
+                        "Keranjang tidak kosong. Yakin ingin membatalkan transaksi?",
+                        "Konfirmasi Batal", JOptionPane.YES_NO_OPTION);
+                if (confirm != JOptionPane.YES_OPTION) return;
+            }
+            dialog.dispose();
+        });
+
+        btnPanel.add(btnBayar);
+        btnPanel.add(btnBatal);
+
+        bottomPanel.add(totalPanel, BorderLayout.CENTER);
+        bottomPanel.add(btnPanel,   BorderLayout.EAST);
+
+        // Susun dialog
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.add(cartScroll, BorderLayout.CENTER);
+        centerPanel.add(editPanel,  BorderLayout.SOUTH);
+
+        dialog.add(topPanel,     BorderLayout.NORTH);
+        dialog.add(centerPanel,  BorderLayout.CENTER);
+        dialog.add(bottomPanel,  BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
+    }
+
+    /** Ambil daftar barang yang masih ada stok sisa (stok - qty di keranjang > 0) */
+    private static List<Barang> getTersedia(List<Object[]> cartItems) {
+        List<Barang> list = new ArrayList<>();
+        for (Barang b : inventory) {
+            int diKeranjang = 0;
+            for (Object[] item : cartItems)
+                if (((Barang) item[0]).getIdBarang().equals(b.getIdBarang()))
+                    diKeranjang = (int) item[1];
+            if (b.getStok() - diKeranjang > 0) list.add(b);
         }
+        return list;
     }
 
     private static boolean simpanTransaksiKeDatabase(Penjualan transaksi) {
@@ -350,36 +513,32 @@ public class Main {
             conn = DBHelper.getConnection();
             conn.setAutoCommit(false);
 
-            Map<String, Integer> totalQtyPerBarang = new HashMap<>();
-            for (PenjualanDetail d : transaksi.getDetailList()) {
-                totalQtyPerBarang.put(d.getIdBarang(),
-                        totalQtyPerBarang.getOrDefault(d.getIdBarang(), 0) + d.getJumlah());
+            Map<String, Integer> qtyMap = new HashMap<>();
+            for (PenjualanDetail d : transaksi.getDetailList())
+                qtyMap.put(d.getIdBarang(), qtyMap.getOrDefault(d.getIdBarang(), 0) + d.getJumlah());
+
+            for (Map.Entry<String, Integer> en : qtyMap.entrySet()) {
+                Barang b = findBarangById(en.getKey());
+                if (b == null) throw new SQLException("Barang tidak ditemukan: " + en.getKey());
+                if (b.getStok() < en.getValue()) throw new SQLException("Stok tidak cukup: " + b.getNamaBarang());
             }
 
-            for (Map.Entry<String, Integer> entry : totalQtyPerBarang.entrySet()) {
-                Barang b = findBarangById(entry.getKey());
-                if (b == null) throw new SQLException("Barang tidak ditemukan: " + entry.getKey());
-                if (b.getStok() < entry.getValue())
-                    throw new SQLException("Stok tidak cukup: " + b.getNamaBarang());
-            }
-
-            try (PreparedStatement pstmt = conn.prepareStatement(
-                    "INSERT INTO penjualan (idPenjualan,tanggal,idCustomer,namaCustomer,subtotal,pajak,totalAkhir) VALUES (?,?,?,?,?,?,?)")) {
-                pstmt.setString(1, transaksi.getIdPenjualan());
-                pstmt.setTimestamp(2, new Timestamp(transaksi.getTanggal().getTime()));
-                pstmt.setString(3, transaksi.getIdCustomer());
-                pstmt.setString(4, transaksi.getNamaCustomer());
-                pstmt.setDouble(5, transaksi.getSubtotal());
-                pstmt.setDouble(6, transaksi.getPajak());
-                pstmt.setDouble(7, transaksi.getTotalAkhir());
-                pstmt.executeUpdate();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO penjualan(idPenjualan,tanggal,idCustomer,namaCustomer,subtotal,pajak,totalAkhir) VALUES(?,?,?,?,?,?,?)")) {
+                ps.setString(1, transaksi.getIdPenjualan());
+                ps.setTimestamp(2, new Timestamp(transaksi.getTanggal().getTime()));
+                ps.setString(3, transaksi.getIdCustomer());
+                ps.setString(4, transaksi.getNamaCustomer());
+                ps.setDouble(5, transaksi.getSubtotal());
+                ps.setDouble(6, transaksi.getPajak());
+                ps.setDouble(7, transaksi.getTotalAkhir());
+                ps.executeUpdate();
             }
 
             try (PreparedStatement pd = conn.prepareStatement(
-                    "INSERT INTO detail_penjualan (idDetailPenjualan,idPenjualan,idBarang,jumlah,subtotal) VALUES (?,?,?,?,?)");
-                 PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO detail_penjualan(idDetailPenjualan,idPenjualan,idBarang,jumlah,subtotal) VALUES(?,?,?,?,?)");
+                 PreparedStatement pk = conn.prepareStatement(
                     "UPDATE barang SET stok = stok - ? WHERE idBarang = ?")) {
-
                 for (PenjualanDetail d : transaksi.getDetailList()) {
                     pd.setString(1, d.getIdDetailPenjualan());
                     pd.setString(2, transaksi.getIdPenjualan());
@@ -388,18 +547,15 @@ public class Main {
                     pd.setDouble(5, d.getSubtotal());
                     pd.executeUpdate();
                 }
-                for (Map.Entry<String, Integer> entry : totalQtyPerBarang.entrySet()) {
-                    ps.setInt(1, entry.getValue());
-                    ps.setString(2, entry.getKey());
-                    ps.executeUpdate();
+                for (Map.Entry<String, Integer> en : qtyMap.entrySet()) {
+                    pk.setInt(1, en.getValue()); pk.setString(2, en.getKey()); pk.executeUpdate();
                 }
             }
 
             conn.commit();
-
-            for (Map.Entry<String, Integer> entry : totalQtyPerBarang.entrySet()) {
-                Barang b = findBarangById(entry.getKey());
-                if (b != null) b.setStok(b.getStok() - entry.getValue());
+            for (Map.Entry<String, Integer> en : qtyMap.entrySet()) {
+                Barang b = findBarangById(en.getKey());
+                if (b != null) b.setStok(b.getStok() - en.getValue());
             }
             return true;
 
@@ -412,13 +568,13 @@ public class Main {
         }
     }
 
-    // ============================================================
+    // ================================================================
     //  RIWAYAT TRANSAKSI — Edit & Hapus HANYA untuk ADMIN
-    // ============================================================
+    // ================================================================
 
-    private static void riwayatTransaksiGUI(User user) {
+    private static void riwayatTransaksiGUI(JFrame parent, User user) {
         if (riwayatTransaksi.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "Belum ada transaksi.");
+            JOptionPane.showMessageDialog(parent, "Belum ada transaksi.");
             return;
         }
 
@@ -428,72 +584,67 @@ public class Main {
         DefaultTableModel model = new DefaultTableModel(col, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
-        for (Penjualan p : riwayatTransaksi) {
+        for (Penjualan p : riwayatTransaksi)
             model.addRow(new Object[]{
                     p.getIdPenjualan(), p.getTanggal(),
                     p.getNamaCustomer(), String.format("Rp %,.0f", p.getTotalAkhir())
             });
-        }
 
         JTable table = new JTable(model);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setRowHeight(24);
         JScrollPane scroll = new JScrollPane(table);
 
-        JDialog dialog = new JDialog((Frame) null, "Riwayat Transaksi", true);
+        JDialog dialog = new JDialog(parent, "Riwayat Transaksi", true);
         dialog.setLayout(new BorderLayout());
         dialog.add(scroll, BorderLayout.CENTER);
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
 
         if (isAdmin) {
-            // ADMIN: tampilkan tombol Edit dan Hapus
-            JButton btnEdit  = new JButton("✏️  Edit Transaksi");
-            JButton btnHapus = new JButton("🗑️  Hapus Transaksi");
+            JButton btnEdit  = new JButton("✏️ Edit Transaksi");
+            JButton btnHapus = new JButton("🗑️ Hapus Transaksi");
 
             btnEdit.addActionListener(e -> {
                 int row = table.getSelectedRow();
-                if (row == -1) { JOptionPane.showMessageDialog(dialog, "Pilih transaksi dulu!"); return; }
+                if (row < 0) { JOptionPane.showMessageDialog(dialog, "Pilih transaksi dulu!"); return; }
                 String id = (String) model.getValueAt(row, 0);
-                if (editTransaksiById(id, dialog)) {
-                    for (Penjualan p : riwayatTransaksi) {
-                        if (p.getIdPenjualan().equals(id)) {
-                            model.setValueAt(p.getNamaCustomer(), row, 2); break;
-                        }
-                    }
-                }
+                if (editTransaksiById(id, dialog))
+                    for (Penjualan p : riwayatTransaksi)
+                        if (p.getIdPenjualan().equals(id)) { model.setValueAt(p.getNamaCustomer(), row, 2); break; }
             });
 
             btnHapus.addActionListener(e -> {
                 int row = table.getSelectedRow();
-                if (row == -1) { JOptionPane.showMessageDialog(dialog, "Pilih transaksi dulu!"); return; }
+                if (row < 0) { JOptionPane.showMessageDialog(dialog, "Pilih transaksi dulu!"); return; }
                 String id = (String) model.getValueAt(row, 0);
                 if (hapusTransaksiById(id, dialog)) model.removeRow(row);
             });
 
-            buttonPanel.add(btnEdit);
-            buttonPanel.add(btnHapus);
+            btnPanel.add(btnEdit);
+            btnPanel.add(btnHapus);
         } else {
-            // KASIR: hanya tampilkan label informasi, tanpa tombol edit/hapus
             JLabel info = new JLabel("ℹ️  Mode Kasir: riwayat hanya dapat dilihat.");
             info.setForeground(new Color(180, 60, 0));
             info.setFont(new Font("Arial", Font.ITALIC, 12));
-            buttonPanel.add(info);
+            btnPanel.add(info);
         }
 
         JButton btnTutup = new JButton("Tutup");
         btnTutup.addActionListener(e -> dialog.dispose());
-        buttonPanel.add(btnTutup);
+        btnPanel.add(btnTutup);
 
-        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
         dialog.setSize(850, 550);
-        dialog.setLocationRelativeTo(null);
+        dialog.setLocationRelativeTo(parent);
         dialog.setVisible(true);
     }
 
-    // ============================================================
+    // ================================================================
     //  CEK STOK
-    // ============================================================
+    // ================================================================
 
-    private static void cekStokDanHargaGUI() {
+    private static void cekStokDanHargaGUI(JFrame parent) {
         String[] col = {"ID", "Nama Barang", "Kategori", "Harga", "Stok"};
         Object[][] data = new Object[inventory.size()][5];
         for (int i = 0; i < inventory.size(); i++) {
@@ -502,308 +653,220 @@ public class Main {
                     b.getKategori(), String.format("Rp %,.0f", b.getHarga()), b.getStok() };
         }
         JTable table = new JTable(data, col);
-        JOptionPane.showMessageDialog(null, new JScrollPane(table),
-                "DAFTAR BARANG & STOK", JOptionPane.PLAIN_MESSAGE);
+        table.setRowHeight(24);
+        JDialog dialog = new JDialog(parent, "Daftar Barang & Stok", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.add(new JScrollPane(table), BorderLayout.CENTER);
+        JButton tutup = new JButton("Tutup");
+        tutup.addActionListener(e -> dialog.dispose());
+        JPanel bp = new JPanel(); bp.add(tutup);
+        dialog.add(bp, BorderLayout.SOUTH);
+        dialog.setSize(650, 400);
+        dialog.setLocationRelativeTo(parent);
+        dialog.setVisible(true);
     }
 
-    // ============================================================
-    //  MANAJEMEN BARANG (ADMIN) — Barang dipilih lewat JComboBox
-    // ============================================================
+    // ================================================================
+    //  MANAJEMEN BARANG (ADMIN)
+    // ================================================================
 
-    private static void manajemenBarangGUI() {
+    private static void manajemenBarangGUI(JFrame parent) {
         String[] pilihan = {"Tambah Barang Baru", "Edit Harga / Stok", "Hapus Barang", "Kembali"};
-        int p = JOptionPane.showOptionDialog(null, "Pilih aksi:", "Manajemen Barang (ADMIN)",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
-                null, pilihan, pilihan[0]);
-
-        if (p == 0) tambahBarangBaruGUI();
-        else if (p == 1) editBarangGUI();
-        else if (p == 2) hapusBarangGUI();
+        int p = JOptionPane.showOptionDialog(parent, "Pilih aksi:", "Manajemen Barang (ADMIN)",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, pilihan, pilihan[0]);
+        if (p == 0) tambahBarangBaruGUI(parent);
+        else if (p == 1) editBarangGUI(parent);
+        else if (p == 2) hapusBarangGUI(parent);
     }
 
-    private static void tambahBarangBaruGUI() {
-        JTextField idF      = new JTextField();
-        JTextField namaF    = new JTextField();
-        JTextField katF     = new JTextField();
-        JTextField hargaF   = new JTextField();
-        JTextField stokF    = new JTextField();
-        JTextField garansiF = new JTextField();
-
+    private static void tambahBarangBaruGUI(JFrame parent) {
+        JTextField idF = new JTextField(), namaF = new JTextField(),
+                   katF = new JTextField(), hargaF = new JTextField(),
+                   stokF = new JTextField(), garansiF = new JTextField();
         Object[] msg = {
                 "ID Barang:", idF, "Nama Barang:", namaF, "Kategori:", katF,
-                "Harga Jual (Rp):", hargaF, "Stok Awal:", stokF, "Garansi (opsional):", garansiF
+                "Harga (Rp):", hargaF, "Stok Awal:", stokF, "Garansi (opsional):", garansiF
         };
-
-        if (JOptionPane.showConfirmDialog(null, msg, "Tambah Barang Baru",
+        if (JOptionPane.showConfirmDialog(parent, msg, "Tambah Barang Baru",
                 JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
 
-        String id       = idF.getText().trim();
-        String nama     = namaF.getText().trim();
-        String kategori = katF.getText().trim();
-        String garansi  = garansiF.getText().trim();
-
-        if (id.isEmpty() || nama.isEmpty() || kategori.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "ID Barang, Nama, dan Kategori harus diisi!");
-            return;
+        String id = idF.getText().trim(), nama = namaF.getText().trim(), kat = katF.getText().trim();
+        if (id.isEmpty() || nama.isEmpty() || kat.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "ID, Nama, dan Kategori wajib diisi!"); return;
         }
-        for (Barang b : inventory) {
-            if (b.getIdBarang().equalsIgnoreCase(id)) {
-                JOptionPane.showMessageDialog(null, "❌ ID Barang sudah ada!");
-                return;
-            }
+        for (Barang b : inventory) if (b.getIdBarang().equalsIgnoreCase(id)) {
+            JOptionPane.showMessageDialog(parent, "❌ ID sudah ada!"); return;
         }
-
         try {
             double harga = Double.parseDouble(hargaF.getText().trim());
-            int stok     = Integer.parseInt(stokF.getText().trim());
-            if (harga < 0 || stok < 0) {
-                JOptionPane.showMessageDialog(null, "Harga dan stok tidak boleh negatif!");
-                return;
-            }
-            Barang baru = new Barang(id, nama, kategori, harga, stok, garansi);
-            inventory.add(baru);
-            DBHelper.addBarang(baru);
-            JOptionPane.showMessageDialog(null, "✅ Barang berhasil ditambahkan!");
+            int    stok  = Integer.parseInt(stokF.getText().trim());
+            if (harga < 0 || stok < 0) { JOptionPane.showMessageDialog(parent, "Harga/stok tidak boleh negatif!"); return; }
+            Barang baru = new Barang(id, nama, kat, harga, stok, garansiF.getText().trim());
+            inventory.add(baru); DBHelper.addBarang(baru);
+            JOptionPane.showMessageDialog(parent, "✅ Barang berhasil ditambahkan!");
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(null, "Input harga/stok tidak valid!");
+            JOptionPane.showMessageDialog(parent, "Input harga/stok tidak valid!");
         }
     }
 
-    /**
-     * Edit barang: pilih lewat JComboBox, lalu ubah harga/stok via form.
-     */
-    private static void editBarangGUI() {
-        if (inventory.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "Belum ada barang di inventory.");
-            return;
-        }
+    private static void editBarangGUI(JFrame parent) {
+        if (inventory.isEmpty()) { JOptionPane.showMessageDialog(parent, "Inventory kosong."); return; }
 
-        // Label: "B001  |  Samsung Galaxy A35  |  Rp 4.500.000  |  Stok: 15"
         String[] labels = new String[inventory.size()];
         for (int i = 0; i < inventory.size(); i++) {
             Barang b = inventory.get(i);
             labels[i] = String.format("%s  |  %s  |  Rp %,.0f  |  Stok: %d",
                     b.getIdBarang(), b.getNamaBarang(), b.getHarga(), b.getStok());
         }
-
         JComboBox<String> combo = new JComboBox<>(labels);
         combo.setPreferredSize(new Dimension(480, 28));
 
-        int res = JOptionPane.showConfirmDialog(null, combo,
-                "Pilih Barang yang akan Diedit", JOptionPane.OK_CANCEL_OPTION);
-        if (res != JOptionPane.OK_OPTION) return;
-
-        int idx = combo.getSelectedIndex();
-        if (idx < 0) return;
-
-        Barang target = inventory.get(idx);
-
-        JTextField hargaF = new JTextField(String.valueOf(target.getHarga()));
-        JTextField stokF  = new JTextField(String.valueOf(target.getStok()));
-        Object[] msg = {
-                "Barang  : " + target.getNamaBarang(),
-                "Harga baru (Rp):", hargaF,
-                "Stok baru:", stokF
-        };
-
-        if (JOptionPane.showConfirmDialog(null, msg, "Edit Barang",
+        if (JOptionPane.showConfirmDialog(parent, combo, "Pilih Barang yang Diedit",
                 JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
 
+        Barang target = inventory.get(combo.getSelectedIndex());
+        JTextField hargaF = new JTextField(String.valueOf(target.getHarga()));
+        JTextField stokF  = new JTextField(String.valueOf(target.getStok()));
+        Object[] msg = { "Barang: " + target.getNamaBarang(), "Harga baru (Rp):", hargaF, "Stok baru:", stokF };
+
+        if (JOptionPane.showConfirmDialog(parent, msg, "Edit Barang",
+                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
         try {
             double harga = Double.parseDouble(hargaF.getText().trim());
-            int stok     = Integer.parseInt(stokF.getText().trim());
-            if (harga < 0 || stok < 0) {
-                JOptionPane.showMessageDialog(null, "Harga dan stok tidak boleh negatif!");
-                return;
-            }
-            target.setHarga(harga);
-            target.setStok(stok);
+            int    stok  = Integer.parseInt(stokF.getText().trim());
+            if (harga < 0 || stok < 0) { JOptionPane.showMessageDialog(parent, "Tidak boleh negatif!"); return; }
+            target.setHarga(harga); target.setStok(stok);
             DBHelper.updateBarang(target.getIdBarang(), harga, stok);
-            JOptionPane.showMessageDialog(null, "✅ Barang berhasil diupdate!");
+            JOptionPane.showMessageDialog(parent, "✅ Barang berhasil diupdate!");
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(null, "Input tidak valid!");
+            JOptionPane.showMessageDialog(parent, "Input tidak valid!");
         }
     }
 
-    /**
-     * Hapus barang: pilih lewat JComboBox.
-     * Hanya barang yang BELUM pernah dijual yang ditampilkan.
-     */
-    private static void hapusBarangGUI() {
-        if (inventory.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "Belum ada barang di inventory.");
-            return;
-        }
+    private static void hapusBarangGUI(JFrame parent) {
+        if (inventory.isEmpty()) { JOptionPane.showMessageDialog(parent, "Inventory kosong."); return; }
 
         List<Barang> bisaDihapus = new ArrayList<>();
-        for (Barang b : inventory) {
-            if (!DBHelper.isBarangUsed(b.getIdBarang())) bisaDihapus.add(b);
-        }
+        for (Barang b : inventory) if (!DBHelper.isBarangUsed(b.getIdBarang())) bisaDihapus.add(b);
 
         if (bisaDihapus.isEmpty()) {
-            JOptionPane.showMessageDialog(null,
-                    "Semua barang sudah pernah dijual.\nTidak ada barang yang bisa dihapus.",
-                    "Info", JOptionPane.INFORMATION_MESSAGE);
-            return;
+            JOptionPane.showMessageDialog(parent,
+                    "Semua barang sudah pernah dijual.\nTidak ada yang bisa dihapus."); return;
         }
 
         String[] labels = new String[bisaDihapus.size()];
         for (int i = 0; i < bisaDihapus.size(); i++) {
             Barang b = bisaDihapus.get(i);
-            labels[i] = String.format("%s  |  %s  |  Stok: %d",
-                    b.getIdBarang(), b.getNamaBarang(), b.getStok());
+            labels[i] = String.format("%s  |  %s  |  Stok: %d", b.getIdBarang(), b.getNamaBarang(), b.getStok());
         }
-
         JComboBox<String> combo = new JComboBox<>(labels);
         combo.setPreferredSize(new Dimension(420, 28));
 
-        int res = JOptionPane.showConfirmDialog(null, combo,
-                "Pilih Barang yang akan Dihapus", JOptionPane.OK_CANCEL_OPTION);
-        if (res != JOptionPane.OK_OPTION) return;
+        if (JOptionPane.showConfirmDialog(parent, combo, "Pilih Barang yang Dihapus",
+                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
 
-        int idx = combo.getSelectedIndex();
-        if (idx < 0) return;
-
-        Barang target = bisaDihapus.get(idx);
-
-        int confirm = JOptionPane.showConfirmDialog(null,
-                "Yakin ingin menghapus:\n" + target.getNamaBarang()
-                + " (" + target.getIdBarang() + ")?",
-                "Konfirmasi Hapus", JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) return;
+        Barang target = bisaDihapus.get(combo.getSelectedIndex());
+        if (JOptionPane.showConfirmDialog(parent,
+                "Hapus " + target.getNamaBarang() + "?", "Konfirmasi", JOptionPane.YES_NO_OPTION)
+                != JOptionPane.YES_OPTION) return;
 
         inventory.remove(target);
         DBHelper.deleteBarang(target.getIdBarang());
-        JOptionPane.showMessageDialog(null, "✅ Barang berhasil dihapus!");
+        JOptionPane.showMessageDialog(parent, "✅ Barang berhasil dihapus!");
     }
 
-    private static void laporanStokRendahGUI() {
+    private static void laporanStokRendahGUI(JFrame parent) {
         StringBuilder sb = new StringBuilder("=== LAPORAN STOK RENDAH (< 5) ===\n\n");
         boolean ada = false;
-        for (Barang b : inventory) {
-            if (b.getStok() < 5) {
-                sb.append(String.format("%s - %s | Stok: %d\n",
-                        b.getIdBarang(), b.getNamaBarang(), b.getStok()));
-                ada = true;
-            }
+        for (Barang b : inventory) if (b.getStok() < 5) {
+            sb.append(String.format("%s - %s | Stok: %d\n", b.getIdBarang(), b.getNamaBarang(), b.getStok()));
+            ada = true;
         }
         if (!ada) sb.append("Semua stok masih aman.");
-        JTextArea ta = new JTextArea(sb.toString());
-        ta.setEditable(false);
-        JOptionPane.showMessageDialog(null, new JScrollPane(ta),
-                "Laporan Stok Rendah", JOptionPane.PLAIN_MESSAGE);
+        JTextArea ta = new JTextArea(sb.toString()); ta.setEditable(false);
+        JOptionPane.showMessageDialog(parent, new JScrollPane(ta), "Laporan Stok Rendah", JOptionPane.PLAIN_MESSAGE);
     }
 
-    // ============================================================
-    //  EDIT & HAPUS TRANSAKSI (hanya bisa dipanggil oleh ADMIN)
-    // ============================================================
+    // ================================================================
+    //  EDIT & HAPUS TRANSAKSI (ADMIN only)
+    // ================================================================
 
     private static boolean editTransaksiById(String id, Component parent) {
-        for (Penjualan p : riwayatTransaksi) {
-            if (p.getIdPenjualan().equals(id)) {
-                String namaBaru = JOptionPane.showInputDialog(parent,
-                        "Nama Customer baru:", p.getNamaCustomer());
-                if (namaBaru != null && !namaBaru.trim().isEmpty()) {
-                    namaBaru = namaBaru.trim();
-                    p.setNamaCustomer(namaBaru);
-                    DBHelper.updateNamaCustomer(id, namaBaru);
-                    JOptionPane.showMessageDialog(parent, "✅ Nama customer berhasil diupdate!");
-                    return true;
-                }
-                return false;
+        for (Penjualan p : riwayatTransaksi) if (p.getIdPenjualan().equals(id)) {
+            String namaBaru = JOptionPane.showInputDialog(parent, "Nama Customer baru:", p.getNamaCustomer());
+            if (namaBaru != null && !namaBaru.trim().isEmpty()) {
+                namaBaru = namaBaru.trim();
+                p.setNamaCustomer(namaBaru);
+                DBHelper.updateNamaCustomer(id, namaBaru);
+                JOptionPane.showMessageDialog(parent, "✅ Nama customer diupdate!");
+                return true;
             }
+            return false;
         }
-        JOptionPane.showMessageDialog(parent, "Transaksi tidak ditemukan!",
-                "Error", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(parent, "Transaksi tidak ditemukan!", "Error", JOptionPane.ERROR_MESSAGE);
         return false;
     }
 
     private static boolean hapusTransaksiById(String id, Component parent) {
         Penjualan target = null;
-        for (Penjualan p : riwayatTransaksi) {
-            if (p.getIdPenjualan().equals(id)) { target = p; break; }
-        }
+        for (Penjualan p : riwayatTransaksi) if (p.getIdPenjualan().equals(id)) { target = p; break; }
         if (target == null) {
-            JOptionPane.showMessageDialog(parent, "Transaksi tidak ditemukan!",
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(parent, "Transaksi tidak ditemukan!", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
 
-        int confirm = JOptionPane.showConfirmDialog(parent,
-                "Hapus transaksi " + id + "?\nStok barang akan dikembalikan.\n\nApakah Anda yakin?",
-                "Konfirmasi Hapus", JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) return false;
+        if (JOptionPane.showConfirmDialog(parent,
+                "Hapus " + id + "?\nStok barang akan dikembalikan.",
+                "Konfirmasi Hapus", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return false;
+
+        Map<String, Integer> qtyMap = new HashMap<>();
+        for (PenjualanDetail d : target.getDetailList())
+            qtyMap.put(d.getIdBarang(), qtyMap.getOrDefault(d.getIdBarang(), 0) + d.getJumlah());
 
         Connection conn = null;
         try {
-            Map<String, Integer> qtyMap = new HashMap<>();
-            for (PenjualanDetail d : target.getDetailList())
-                qtyMap.put(d.getIdBarang(), qtyMap.getOrDefault(d.getIdBarang(), 0) + d.getJumlah());
-
-            conn = DBHelper.getConnection();
-            conn.setAutoCommit(false);
-
-            try (PreparedStatement p1 = conn.prepareStatement(
-                    "DELETE FROM detail_penjualan WHERE idPenjualan = ?")) {
-                p1.setString(1, id); p1.executeUpdate();
+            conn = DBHelper.getConnection(); conn.setAutoCommit(false);
+            try (PreparedStatement p1 = conn.prepareStatement("DELETE FROM detail_penjualan WHERE idPenjualan=?")) {
+                p1.setString(1, id); p1.executeUpdate(); }
+            try (PreparedStatement p2 = conn.prepareStatement("DELETE FROM penjualan WHERE idPenjualan=?")) {
+                p2.setString(1, id); p2.executeUpdate(); }
+            try (PreparedStatement p3 = conn.prepareStatement("UPDATE barang SET stok=stok+? WHERE idBarang=?")) {
+                for (Map.Entry<String, Integer> en : qtyMap.entrySet()) {
+                    p3.setInt(1, en.getValue()); p3.setString(2, en.getKey()); p3.executeUpdate(); }
             }
-            try (PreparedStatement p2 = conn.prepareStatement(
-                    "DELETE FROM penjualan WHERE idPenjualan = ?")) {
-                p2.setString(1, id); p2.executeUpdate();
-            }
-            try (PreparedStatement p3 = conn.prepareStatement(
-                    "UPDATE barang SET stok = stok + ? WHERE idBarang = ?")) {
-                for (Map.Entry<String, Integer> e : qtyMap.entrySet()) {
-                    p3.setInt(1, e.getValue()); p3.setString(2, e.getKey()); p3.executeUpdate();
-                }
-            }
-
             conn.commit();
-
-            for (Map.Entry<String, Integer> e : qtyMap.entrySet()) {
-                Barang b = findBarangById(e.getKey());
-                if (b != null) b.setStok(b.getStok() + e.getValue());
+            for (Map.Entry<String, Integer> en : qtyMap.entrySet()) {
+                Barang b = findBarangById(en.getKey());
+                if (b != null) b.setStok(b.getStok() + en.getValue());
             }
             riwayatTransaksi.remove(target);
-            JOptionPane.showMessageDialog(parent, "✅ Transaksi berhasil dihapus dan stok dikembalikan!");
+            JOptionPane.showMessageDialog(parent, "✅ Transaksi dihapus, stok dikembalikan!");
             return true;
-
         } catch (Exception e) {
             try { if (conn != null) conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
             e.printStackTrace();
-            JOptionPane.showMessageDialog(parent, "❌ Gagal menghapus transaksi.",
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(parent, "❌ Gagal menghapus transaksi.", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         } finally {
             try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
         }
     }
 
-    // ============================================================
+    // ================================================================
     //  HELPER
-    // ============================================================
+    // ================================================================
 
-    private static Barang findBarangById(String idBarang) {
-        for (Barang b : inventory)
-            if (b.getIdBarang().equalsIgnoreCase(idBarang)) return b;
+    private static Barang findBarangById(String id) {
+        for (Barang b : inventory) if (b.getIdBarang().equalsIgnoreCase(id)) return b;
         return null;
-    }
-
-    private static int getQtyInCart(List<PenjualanDetail> cart, String idBarang) {
-        int total = 0;
-        for (PenjualanDetail d : cart)
-            if (d.getIdBarang().equalsIgnoreCase(idBarang)) total += d.getJumlah();
-        return total;
     }
 
     private static String getCustomerIdByName(String nama) {
         try (Connection conn = DBHelper.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(
-                "SELECT idCustomer FROM customer WHERE nama = ? ORDER BY idCustomer DESC LIMIT 1")) {
-            pstmt.setString(1, nama);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) return rs.getString("idCustomer");
-            }
+             PreparedStatement ps = conn.prepareStatement(
+                "SELECT idCustomer FROM customer WHERE nama=? ORDER BY idCustomer DESC LIMIT 1")) {
+            ps.setString(1, nama);
+            try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getString("idCustomer"); }
         } catch (SQLException e) { e.printStackTrace(); }
         return null;
     }
@@ -811,16 +874,12 @@ public class Main {
     private static String getOrCreateCustomerId(String nama) {
         String id = getCustomerIdByName(nama);
         if (id != null) return id;
-
         id = "CUST-" + System.currentTimeMillis();
         try (Connection conn = DBHelper.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(
-                "INSERT INTO customer (idCustomer, nama, telepon, alamat) VALUES (?, ?, ?, ?)")) {
-            pstmt.setString(1, id);
-            pstmt.setString(2, nama);
-            pstmt.setString(3, "-");
-            pstmt.setString(4, "-");
-            pstmt.executeUpdate();
+             PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO customer(idCustomer,nama,telepon,alamat) VALUES(?,?,?,?)")) {
+            ps.setString(1, id); ps.setString(2, nama); ps.setString(3, "-"); ps.setString(4, "-");
+            ps.executeUpdate();
             return id;
         } catch (SQLException e) { e.printStackTrace(); return null; }
     }
