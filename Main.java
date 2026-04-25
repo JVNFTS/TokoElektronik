@@ -164,23 +164,8 @@ public class Main {
         });
     }
 
-    // ================================================================
-    //  TRANSAKSI PENJUALAN — JDialog proper, tidak pakai while+JOptionPane
-    //
-    //  FIX: Sebelumnya menggunakan while loop + JOptionPane berantai di EDT
-    //       yang menyebabkan program freeze / tidak responsif / background
-    //       terpotong saat di-stretch.
-    //
-    //  BARU: Seluruh UI transaksi ada dalam satu JDialog dengan:
-    //    - Panel kiri : daftar barang (pilih via JComboBox + JSpinner)
-    //    - Panel kanan: keranjang (JTable yang bisa diedit langsung)
-    //    - Fitur edit keranjang: ubah jumlah atau hapus item
-    //    - Tombol "Selesai & Bayar" hanya proses sekali, tidak loop
-    // ================================================================
-
     private static void transaksiPenjualanGUI(JFrame parent) {
 
-        // ---- Pilih customer dulu sebelum membuka dialog utama ----
         List<String> custNames = DBHelper.loadCustomerNames();
         JComboBox<String> comboCust = new JComboBox<>();
         comboCust.addItem("--- Pilih Customer ---");
@@ -194,7 +179,7 @@ public class Main {
         String namaCust = (String) comboCust.getSelectedItem();
         if (namaCust == null || namaCust.equals("--- Pilih Customer ---")) return;
 
-        final String[] customerRef = new String[2]; // [0]=id, [1]=nama
+        final String[] customerRef = new String[2]; 
 
         if (namaCust.equals("Tambah Customer Baru")) {
             String input = JOptionPane.showInputDialog(parent, "Nama Customer Baru:");
@@ -214,16 +199,13 @@ public class Main {
             }
         }
 
-        // ---- Model untuk keranjang ----
         String[] cartCols = {"ID Barang", "Nama Barang", "Harga Satuan", "Jumlah", "Subtotal"};
         DefaultTableModel cartModel = new DefaultTableModel(cartCols, 0) {
             @Override public boolean isCellEditable(int row, int col) { return false; }
         };
-        // cart item: [Barang barang, int jumlah]
+       
         List<Object[]> cartItems = new ArrayList<>();
 
-        // ---- Hitung total helper (dipanggil tiap perubahan keranjang) ----
-        // Menggunakan array 1-elemen agar bisa diakses dari dalam lambda
         JLabel[] totalLabel = { new JLabel("Total: Rp 0") };
         totalLabel[0].setFont(new Font("Arial", Font.BOLD, 14));
 
@@ -240,17 +222,14 @@ public class Main {
                     sub, pajak, sub + pajak));
         };
 
-        // ---- Dialog utama ----
         JDialog dialog = new JDialog(parent, "Transaksi Penjualan — " + customerRef[1], true);
         dialog.setSize(820, 580);
         dialog.setLocationRelativeTo(parent);
         dialog.setLayout(new BorderLayout(8, 8));
 
-        // Panel atas: pilih barang
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
         topPanel.setBorder(BorderFactory.createTitledBorder("Pilih Barang"));
 
-        // ComboBox barang (diisi saat dialog dibuka, di-refresh tiap tambah)
         JComboBox<String> comboBarang = new JComboBox<>();
         comboBarang.setPreferredSize(new Dimension(380, 28));
 
@@ -272,7 +251,6 @@ public class Main {
         JSpinner spinJumlah = new JSpinner(new SpinnerNumberModel(1, 1, 999, 1));
         spinJumlah.setPreferredSize(new Dimension(70, 28));
 
-        // Update spinner max saat item combo berubah
         comboBarang.addActionListener(e -> {
             int idx = comboBarang.getSelectedIndex();
             if (idx < 0) return;
@@ -298,7 +276,6 @@ public class Main {
             Barang barangPilih = tersedia.get(idx);
             int qty = (int) spinJumlah.getValue();
 
-            // Jika barang sudah di keranjang, tambah jumlahnya
             boolean found = false;
             for (Object[] item : cartItems) {
                 if (((Barang) item[0]).getIdBarang().equals(barangPilih.getIdBarang())) {
@@ -309,7 +286,6 @@ public class Main {
                         return;
                     }
                     item[1] = newQty;
-                    // Update baris di tabel
                     for (int row = 0; row < cartModel.getRowCount(); row++) {
                         if (cartModel.getValueAt(row, 0).equals(barangPilih.getIdBarang())) {
                             cartModel.setValueAt(newQty, row, 3);
@@ -343,14 +319,12 @@ public class Main {
         topPanel.add(spinJumlah);
         topPanel.add(btnTambah);
 
-        // Panel tengah: keranjang
         JTable cartTable = new JTable(cartModel);
         cartTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         cartTable.setRowHeight(24);
         JScrollPane cartScroll = new JScrollPane(cartTable);
         cartScroll.setBorder(BorderFactory.createTitledBorder("Keranjang Belanja"));
 
-        // Panel edit keranjang
         JPanel editPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
 
         JButton btnEdit = new JButton("✏️ Edit Jumlah");
@@ -361,7 +335,7 @@ public class Main {
             Object[] item     = cartItems.get(row);
             Barang   barang   = (Barang) item[0];
             int      qtyLama  = (int) item[1];
-            int      maxStok  = barang.getStok(); // stok total di inventory
+            int      maxStok  = barang.getStok(); 
 
             SpinnerNumberModel sm = new SpinnerNumberModel(qtyLama, 1, maxStok, 1);
             JSpinner sp = new JSpinner(sm);
@@ -398,7 +372,6 @@ public class Main {
         editPanel.add(btnEdit);
         editPanel.add(btnHapusItem);
 
-        // Panel bawah: total + tombol aksi
         JPanel bottomPanel = new JPanel(new BorderLayout(8, 4));
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(4, 8, 8, 8));
 
@@ -414,15 +387,12 @@ public class Main {
         btnBayar.setFont(new Font("Arial", Font.BOLD, 13));
         btnBatal.setFont(new Font("Arial", Font.BOLD, 13));
 
-        // FIX: Proses pembayaran dijalankan TANPA menutup dialog dulu,
-        // sehingga tidak ada window yang hilang tiba-tiba lalu freeze.
         btnBayar.addActionListener(e -> {
             if (cartItems.isEmpty()) {
                 JOptionPane.showMessageDialog(dialog, "Keranjang masih kosong!");
                 return;
             }
 
-            // Buat objek Penjualan dari keranjang
             List<PenjualanDetail> detailList = new ArrayList<>();
             int detailIdx = 1;
             for (Object[] item : cartItems) {
@@ -439,7 +409,6 @@ public class Main {
             Penjualan transaksi = new Penjualan(idTrans, customerRef[0], customerRef[1], detailList);
             transaksi.hitungTotal();
 
-            // Konfirmasi sebelum simpan
             int confirm = JOptionPane.showConfirmDialog(dialog,
                     "Simpan transaksi " + idTrans + "?\n"
                     + String.format("TOTAL BAYAR: Rp %,.0f", transaksi.getTotalAkhir()),
@@ -451,7 +420,6 @@ public class Main {
                 transaksiCounter++;
                 riwayatTransaksi.add(transaksi);
 
-                // Tampilkan struk SETELAH dialog transaksi tutup
                 dialog.dispose();
 
                 String struk = transaksi.getStrukText(inventory.toArray(new Barang[0]));
@@ -482,7 +450,6 @@ public class Main {
         bottomPanel.add(totalPanel, BorderLayout.CENTER);
         bottomPanel.add(btnPanel,   BorderLayout.EAST);
 
-        // Susun dialog
         JPanel centerPanel = new JPanel(new BorderLayout());
         centerPanel.add(cartScroll, BorderLayout.CENTER);
         centerPanel.add(editPanel,  BorderLayout.SOUTH);
@@ -494,7 +461,6 @@ public class Main {
         dialog.setVisible(true);
     }
 
-    /** Ambil daftar barang yang masih ada stok sisa (stok - qty di keranjang > 0) */
     private static List<Barang> getTersedia(List<Object[]> cartItems) {
         List<Barang> list = new ArrayList<>();
         for (Barang b : inventory) {
