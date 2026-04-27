@@ -646,34 +646,69 @@ public class Main {
     }
 
     private static void tambahBarangBaruGUI(JFrame parent) {
-        JTextField idF = new JTextField(), namaF = new JTextField(),
-                   katF = new JTextField(), hargaF = new JTextField(),
-                   stokF = new JTextField(), garansiF = new JTextField();
+    while (true) {
+        JTextField idF      = new JTextField();
+        JTextField namaF    = new JTextField();
+        JTextField katF     = new JTextField();
+        JTextField hargaF   = new JTextField();
+        JTextField stokF    = new JTextField();
+        JTextField garansiF = new JTextField();
+
         Object[] msg = {
                 "ID Barang:", idF, "Nama Barang:", namaF, "Kategori:", katF,
                 "Harga (Rp):", hargaF, "Stok Awal:", stokF, "Garansi (opsional):", garansiF
         };
-        if (JOptionPane.showConfirmDialog(parent, msg, "Tambah Barang Baru",
-                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
 
-        String id = idF.getText().trim(), nama = namaF.getText().trim(), kat = katF.getText().trim();
+        int opt = JOptionPane.showConfirmDialog(parent, msg, "Tambah Barang Baru",
+                JOptionPane.OK_CANCEL_OPTION);
+        if (opt != JOptionPane.OK_OPTION) return;
+
+        String id   = idF.getText().trim();
+        String nama = namaF.getText().trim();
+        String kat  = katF.getText().trim();
+
         if (id.isEmpty() || nama.isEmpty() || kat.isEmpty()) {
-            JOptionPane.showMessageDialog(parent, "ID, Nama, dan Kategori wajib diisi!"); return;
+            JOptionPane.showMessageDialog(parent,
+                    "⚠️ ID Barang, Nama, dan Kategori wajib diisi!\nSilakan isi kembali.",
+                    "Field Tidak Lengkap", JOptionPane.WARNING_MESSAGE);
+            continue; 
         }
-        for (Barang b : inventory) if (b.getIdBarang().equalsIgnoreCase(id)) {
-            JOptionPane.showMessageDialog(parent, "❌ ID sudah ada!"); return;
+
+        boolean duplikat = false;
+        for (Barang b : inventory) {
+            if (b.getIdBarang().equalsIgnoreCase(id)) { duplikat = true; break; }
         }
+        if (duplikat) {
+            JOptionPane.showMessageDialog(parent,
+                    "❌ ID \"" + id + "\" sudah digunakan barang lain!\nGunakan ID yang berbeda.",
+                    "ID Duplikat", JOptionPane.ERROR_MESSAGE);
+            continue; 
+        }
+
         try {
             double harga = Double.parseDouble(hargaF.getText().trim());
             int    stok  = Integer.parseInt(stokF.getText().trim());
-            if (harga < 0 || stok < 0) { JOptionPane.showMessageDialog(parent, "Harga/stok tidak boleh negatif!"); return; }
+
+            if (harga < 0 || stok < 0) {
+                JOptionPane.showMessageDialog(parent,
+                        "⚠️ Harga dan stok tidak boleh negatif!",
+                        "Input Tidak Valid", JOptionPane.WARNING_MESSAGE);
+                continue; 
+            }
+
             Barang baru = new Barang(id, nama, kat, harga, stok, garansiF.getText().trim());
-            inventory.add(baru); DBHelper.addBarang(baru);
-            JOptionPane.showMessageDialog(parent, "✅ Barang berhasil ditambahkan!");
+            inventory.add(baru);
+            DBHelper.addBarang(baru);
+            JOptionPane.showMessageDialog(parent,
+                    "✅ Barang \"" + nama + "\" berhasil ditambahkan!");
+            return; 
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(parent, "Input harga/stok tidak valid!");
+            JOptionPane.showMessageDialog(parent,
+                    "⚠️ Input harga atau stok tidak valid!\nPastikan diisi dengan angka.",
+                    "Input Tidak Valid", JOptionPane.WARNING_MESSAGE);
         }
     }
+}
 
     private static void editBarangGUI(JFrame parent) {
         if (inventory.isEmpty()) { JOptionPane.showMessageDialog(parent, "Inventory kosong."); return; }
